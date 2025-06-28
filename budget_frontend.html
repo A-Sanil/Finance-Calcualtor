@@ -193,7 +193,12 @@
 
         .chart-container {
             position: relative;
-            height: 400px;
+            height: 320px;
+            max-width: 400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .summary-cards {
@@ -486,9 +491,10 @@
         </div>
 
         <!-- Navigation Tabs -->
-        <div id="navTabs" class="nav-tabs hidden">
+        <div id="navTabs" class="nav-tabs">
             <button class="nav-tab active" onclick="showTab('dashboard')">🏠 Dashboard</button>
             <button class="nav-tab" onclick="showTab('calculator')">🧮 Calculator</button>
+            <button class="nav-tab" onclick="showTab('customBudget')">📝 Custom Budget</button>
             <button class="nav-tab" onclick="showTab('expenses')">📊 Expenses</button>
             <button class="nav-tab" onclick="showTab('goals')">🎯 Goals</button>
             <button class="nav-tab" onclick="showTab('scenarios')">🔮 Scenarios</button>
@@ -503,6 +509,23 @@
 
         <!-- Main App Content -->
         <div id="appContent">
+        <!-- Custom Budget Tab -->
+        <div id="customBudget" class="tab-content">
+            <div class="card">
+                <h2>📝 Custom Budget Planner</h2>
+                <form id="customBudgetForm" style="max-width:500px;margin:0 auto;">
+                    <div id="customBudgetPercent" style="font-weight:600;font-size:1.1em;margin-bottom:10px;text-align:center;color:#764ba2;">Total: 100% used, 0% left</div>
+                    <div id="customBudgetInputs"></div>
+                    <div style="margin-top:20px;text-align:center;">
+                        <button type="button" class="btn btn-success" onclick="applyCustomBudget()">Apply Custom Budget</button>
+                    </div>
+                </form>
+                <div class="chart-container" style="margin-top:30px;">
+                    <div style="height:30px;"></div>
+                    <canvas id="customBudgetChart" width="320" height="320" style="display:block;"></canvas>
+                </div>
+            </div>
+        </div>
             <!-- Dashboard Tab -->
             <div id="dashboard" class="tab-content active">
                 <!-- Income Converter -->
@@ -849,34 +872,8 @@
         </div>
     </div>
 
-    <script>
-        // Helper: Show/hide elements
-        function showElement(id) { document.getElementById(id).classList.remove('hidden'); }
-        function hideElement(id) { document.getElementById(id).classList.add('hidden'); }
-
-        // Show tab logic (unchanged)
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.querySelectorAll('.nav-tab').forEach(btn => btn.classList.remove('active'));
-            const tabBtns = document.querySelectorAll('.nav-tab');
-            const tabNames = ['dashboard','calculator','expenses','goals','scenarios','profiles','reports','settings'];
-            tabNames.forEach((name, idx) => {
-                if (name === tabId) tabBtns[idx].classList.add('active');
-            });
-        }
-
-        // No auth: show everything by default
-        showElement('navTabs');
-        showElement('appContent');
-
-
-        // No auth: skip login/register logic
-
-        // No logout
-
-        // No session check
-    </script>
+    <!-- All JS moved to end of body for global scope and reliability -->
+    <script src="frontend_global.js"></script>
 
     <script>
     // --- Budget Calculator Logic ---
@@ -905,15 +902,14 @@
             if (!response.ok) throw new Error('Calculation failed.');
             const data = await response.json();
             // Update summary cards
-            document.getElementById('grossIncome').textContent = `$${data.gross_income.toLocaleString()}`;
-            document.getElementById('totalTaxes').textContent = `$${data.total_taxes.toLocaleString()}`;
-            document.getElementById('netIncome').textContent = `$${data.net_income.toLocaleString()}`;
-            document.getElementById('monthlyNet').textContent = `$${data.monthly_net.toLocaleString()}`;
+            document.getElementById('grossIncome').textContent = data.yearly_income ? `$${data.yearly_income.toLocaleString()}` : 'N/A';
+            document.getElementById('totalTaxes').textContent = data.total_taxes !== undefined ? `$${data.total_taxes.toLocaleString()}` : 'N/A';
+            document.getElementById('netIncome').textContent = data.net_yearly_income !== undefined ? `$${data.net_yearly_income.toLocaleString()}` : 'N/A';
+            document.getElementById('monthlyNet').textContent = data.monthly_net_income !== undefined ? `$${data.monthly_net_income.toLocaleString()}` : 'N/A';
             // Show results section
             showElement('resultsSection');
             // Update charts
-            updateBudgetChart(data);
-            updateTaxChart(data);
+            updateBudgetBreakdownPie(data);
             // Optionally show tips
             if (data.tips) {
                 showElement('tipsSection');
@@ -925,25 +921,31 @@
     }
 
     // --- Chart.js chart update functions ---
-    let budgetChart, taxChart;
-    function updateBudgetChart(data) {
-        const ctx = document.getElementById('budgetChart').getContext('2d');
-        if (budgetChart) budgetChart.destroy();
-        budgetChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Net Income', 'Taxes'],
-                datasets: [{
-                    data: [data.net_income, data.total_taxes],
-                    backgroundColor: ['#38ef7d', '#667eea'],
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-    }
+let budgetChart, taxChart;
+function updateBudgetBreakdownPie(data) {
+    const ctx = document.getElementById('budgetChart').getContext('2d');
+    if (budgetChart) budgetChart.destroy();
+    const breakdown = data.budget_breakdown || {};
+    const labels = Object.keys(breakdown).map(k => k.charAt(0).toUpperCase() + k.slice(1));
+    const values = Object.values(breakdown);
+    const colors = [
+        '#38ef7d', '#667eea', '#f093fb', '#11998e', '#764ba2', '#f5576c', '#ffc107', '#28a745', '#f8d7da'
+    ];
+    budgetChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+}
     function updateTaxChart(data) {
         const ctx = document.getElementById('taxChart').getContext('2d');
         if (taxChart) taxChart.destroy();
@@ -972,6 +974,164 @@
             div.innerHTML = `<h4>${category}</h4><ul>${tipsArr.map(t => `<li>${t}</li>`).join('')}</ul>`;
             container.appendChild(div);
         });
+    }
+    </script>
+
+    <script>
+    // --- Expense Tracker Logic ---
+    async function addExpense() {
+        const category = document.getElementById('expenseCategory').value;
+        const amount = parseFloat(document.getElementById('expenseAmount').value);
+        const description = document.getElementById('expenseDescription').value;
+        const date = document.getElementById('expenseDate').value;
+        if (!category || isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid expense.');
+            return;
+        }
+        try {
+            const response = await fetch('/api/expenses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category, amount, description, date })
+            });
+            if (!response.ok) throw new Error('Failed to add expense.');
+            await loadExpenses();
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseDescription').value = '';
+            document.getElementById('expenseDate').value = '';
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    async function loadExpenses() {
+        try {
+            const response = await fetch('/api/expenses');
+            if (!response.ok) throw new Error('Failed to load expenses.');
+            const expenses = await response.json();
+            const list = document.getElementById('expenseList');
+            list.innerHTML = '';
+            expenses.forEach(exp => {
+                const div = document.createElement('div');
+                div.className = 'expense-item';
+                div.innerHTML = `<div class='expense-item-content'><b>${exp.category}</b>: $${exp.amount} <span style='color:#888'>${exp.description || ''}</span> <span style='float:right'>${exp.date ? exp.date.split('T')[0] : ''}</span></div>`;
+                list.appendChild(div);
+            });
+        } catch (err) {
+            document.getElementById('expenseList').innerHTML = '<div class="error">Could not load expenses.</div>';
+        }
+    }
+    // Load expenses on page load
+    window.addEventListener('DOMContentLoaded', loadExpenses);
+    </script>
+
+    <script>
+    // --- Goals Logic ---
+    async function loadGoals() {
+        try {
+            const response = await fetch('/api/goals');
+            if (!response.ok) throw new Error('Failed to load goals.');
+            const goals = await response.json();
+            const container = document.getElementById('goalsContainer');
+            container.innerHTML = '';
+            goals.forEach(goal => {
+                const div = document.createElement('div');
+                div.className = 'goal-card';
+                const percent = Math.min(100, Math.round((goal.saved / goal.target) * 100));
+                div.innerHTML = `<h4>${goal.title}</h4><div class='goal-progress'><div class='goal-progress-bar' style='width:${percent}%;background:#38ef7d'></div></div><div><b>Saved:</b> $${goal.saved} / $${goal.target} (${percent}%)</div>`;
+                container.appendChild(div);
+            });
+        } catch (err) {
+            document.getElementById('goalsContainer').innerHTML = '<div class="error">Could not load goals.</div>';
+        }
+    }
+
+    function showGoalModal() {
+        const title = prompt('Goal Title:');
+        if (!title) return;
+        const target = prompt('Target Amount:');
+        if (!target || isNaN(target) || Number(target) <= 0) return alert('Invalid target amount.');
+        const saved = prompt('Amount Saved (optional):', '0');
+        addGoal(title, target, saved || 0);
+    }
+
+    async function addGoal(title, target, saved) {
+        try {
+            const response = await fetch('/api/goals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, target, saved })
+            });
+            if (!response.ok) throw new Error('Failed to add goal.');
+            await loadGoals();
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+    // Load goals on page load
+    window.addEventListener('DOMContentLoaded', loadGoals);
+    </script>
+
+    <script>
+    // --- Income Converter Logic ---
+    async function convertIncome(type) {
+        let amount = 0;
+        if (type === 'hourly') amount = parseFloat(document.getElementById('hourlyRate').value);
+        if (type === 'monthly') amount = parseFloat(document.getElementById('monthlyIncome').value);
+        if (type === 'yearly') amount = parseFloat(document.getElementById('yearlyIncome').value);
+        if (isNaN(amount) || amount <= 0) return;
+        try {
+            const response = await fetch('/api/convert-income', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount, from_type: type })
+            });
+            if (!response.ok) throw new Error('Failed to convert income.');
+            const data = await response.json();
+            document.getElementById('hourlyRate').value = data.hourly;
+            document.getElementById('monthlyIncome').value = data.monthly;
+            document.getElementById('yearlyIncome').value = data.yearly;
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+    </script>
+
+    <script>
+    // --- Scenario Simulator Logic ---
+    function runScenario() {
+        alert('Scenario simulation is not yet implemented.');
+    }
+    </script>
+
+    <script>
+    // --- Reports Logic ---
+    function generateReport() {
+        alert('Report generation is not yet implemented.');
+    }
+    </script>
+
+    <script>
+    // --- Export Data Logic ---
+    function exportData(type) {
+        alert('Exporting data as ' + type + ' is not yet implemented.');
+    }
+
+    // --- Export Report Logic ---
+    function exportReport(type) {
+        alert('Exporting report as ' + type + ' is not yet implemented.');
+    }
+    </script>
+
+    <script>
+    // --- Backup Data Logic ---
+    function backupData() {
+        alert('Backup is not yet implemented.');
+    }
+
+    // --- Reset Data Logic ---
+    function resetData() {
+        alert('Reset is not yet implemented.');
     }
     </script>
 </body>

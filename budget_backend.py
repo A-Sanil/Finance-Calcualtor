@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, render_template, session
+
+from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 import sqlite3
 import hashlib
@@ -6,7 +7,77 @@ import json
 from datetime import datetime
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='.', static_url_path='')
+app.secret_key = 'your-secret-key-here'  # Change this in production
+CORS(app)
+
+# ...existing code...
+
+# Goals API endpoints (simple, not user-specific)
+@app.route('/api/goals', methods=['GET'])
+def get_goals():
+    if not os.path.exists('goals.json'):
+        with open('goals.json', 'w') as f:
+            json.dump([], f)
+    with open('goals.json', 'r') as f:
+        goals = json.load(f)
+    return jsonify(goals)
+
+@app.route('/api/goals', methods=['POST'])
+def add_goal():
+    data = request.get_json()
+    title = data.get('title')
+    target = data.get('target')
+    saved = data.get('saved', 0)
+    if not title or not target or float(target) <= 0:
+        return jsonify({'error': 'Invalid goal data'}), 400
+    if not os.path.exists('goals.json'):
+        with open('goals.json', 'w') as f:
+            json.dump([], f)
+    with open('goals.json', 'r') as f:
+        goals = json.load(f)
+    goals.append({'title': title, 'target': float(target), 'saved': float(saved)})
+    with open('goals.json', 'w') as f:
+        json.dump(goals, f)
+    return jsonify({'success': True})
+
+# Expense API endpoints
+@app.route('/api/expenses', methods=['GET'])
+def get_expenses():
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT category, amount, description, date_added FROM user_expenses ORDER BY date_added DESC LIMIT 50')
+    expenses = [
+        {
+            'category': row[0],
+            'amount': row[1],
+            'description': row[2],
+            'date': row[3]
+        } for row in cursor.fetchall()
+    ]
+    conn.close()
+    return jsonify(expenses)
+
+@app.route('/api/expenses', methods=['POST'])
+def add_expense():
+    data = request.get_json()
+    category = data.get('category')
+    amount = data.get('amount')
+    description = data.get('description')
+    date = data.get('date')
+    if not category or not amount or float(amount) <= 0:
+        return jsonify({'error': 'Invalid expense data'}), 400
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO user_expenses (category, amount, description, date_added) VALUES (?, ?, ?, ?)',
+                   (category, amount, description, date))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+# ...existing code...
+
+app = Flask(__name__, static_folder='.', static_url_path='')
 app.secret_key = 'your-secret-key-here'  # Change this in production
 CORS(app)
 
@@ -254,9 +325,11 @@ def get_housing_tips(county, monthly_income):
     
     return base_tips
 
+
+# Serve the main frontend HTML
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return send_from_directory('.', 'budget_frontend.html')
 
 @app.route('/api/register', methods=['POST'])
 def register():
