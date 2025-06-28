@@ -900,7 +900,7 @@
             const response = await fetch('/api/calculate-budget', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ income, filing_status: filingStatus, county })
+                body: JSON.stringify({ yearly_income: income, filing_status: filingStatus, county })
             });
             if (!response.ok) throw new Error('Calculation failed.');
             const data = await response.json();
