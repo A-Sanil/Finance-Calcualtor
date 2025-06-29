@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify, send_from_directory, session
 from flask_cors import CORS
 import sqlite3
@@ -6,12 +5,13 @@ import hashlib
 import json
 from datetime import datetime
 import os
+import threading
+import webbrowser
+import time
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 app.secret_key = 'your-secret-key-here'  # Change this in production
 CORS(app)
-
-# ...existing code...
 
 # Goals API endpoints (simple, not user-specific)
 @app.route('/api/goals', methods=['GET'])
@@ -74,8 +74,6 @@ def add_expense():
     conn.commit()
     conn.close()
     return jsonify({'success': True})
-
-# ...existing code...
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 app.secret_key = 'your-secret-key-here'  # Change this in production
@@ -623,9 +621,14 @@ def get_user_profile():
 if __name__ == '__main__':
     # Create templates directory if it doesn't exist
     os.makedirs('templates', exist_ok=True)
-    
     # Initialize database
     init_db()
-    
+
+    # Open browser after a short delay to ensure server starts
+    def open_browser():
+        time.sleep(1)
+        webbrowser.open('http://localhost:5000')
+
+    threading.Thread(target=open_browser).start()
     # Run the app
     app.run(debug=True, host='localhost', port=5000)
