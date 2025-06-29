@@ -48,37 +48,9 @@ A modern, full-stack budgeting web application designed for California residents
 4. Double-click the `.exe` to launch the app (browser opens automatically, no command window).
 
 
-## Project Highlights for CS Recruitment
-
-- **Full-Stack Engineering**: Designed and implemented both backend (Flask, SQLite, REST APIs) and frontend (HTML/JS, Chart.js, UI/UX).
-- **Real-World Data Integration**: Used real California tax brackets and county rates for accurate calculations.
-- **Modern SPA Experience**: Single-page app feel with dynamic tab switching and live updates.
-- **Packaging & Distribution**: Automated build process for Windows, including troubleshooting and user-friendly deployment.
-- **Security**: User authentication, password hashing, and session management.
-- **Code Quality**: Modular, well-documented codebase with clear separation of concerns.
-- **User-Centric Design**: Focused on actionable insights, ease of use, and accessibility.
-
-## Possible Talking Points for Interviews
-
-- How you handled state/county tax logic and dynamic recommendations.
-- Building a full-stack app from scratch and connecting all layers.
-- Packaging Python web apps as Windows executables for non-technical users.
-- UI/UX decisions for financial tools and data visualization.
-- Troubleshooting PyInstaller and cross-platform packaging issues.
-- Using Python's standard library for file/database management and security.
-
-## For Recruiters: Why This Project is "Ferdaaa"
-
-- Built for real-world impact: helps Californians make smarter financial decisions.
-- End-to-end engineering: from database to browser, all code written and integrated by me.
-- Professional, modern, and user-friendly—ready for production and distribution.
-- Demonstrates practical skills in Python, web dev, packaging, and deployment.
-- Clean code, clear documentation, and a focus on user experience.
-
 ## License
 
 MIT License (or specify your own)
 
 ---
 
-*Created by Aadit — 2025*
