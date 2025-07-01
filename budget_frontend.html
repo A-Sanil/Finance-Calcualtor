@@ -556,6 +556,27 @@
                                 <span>/year</span>
                             </div>
                         </div>
+                        <div class="converter-card">
+                            <h3>Hours Worked Per Day</h3>
+                            <div class="converter-input">
+                                <input type="number" id="hoursPerDay" placeholder="8" min="1" max="24" value="8" onchange="convertIncome(lastIncomeType)">
+                                <span>hours/day</span>
+                            </div>
+                        </div>
+                        <div class="converter-card">
+                            <h3>Days Worked Per Week</h3>
+                            <div class="converter-input">
+                                <input type="number" id="daysPerWeek" placeholder="5" min="1" max="7" value="5" onchange="convertIncome(lastIncomeType)">
+                                <span>days/week</span>
+                            </div>
+                        </div>
+                        <div class="converter-card">
+                            <h3>Weeks Worked Per Year</h3>
+                            <div class="converter-input">
+                                <input type="number" id="weeksPerYear" placeholder="52" min="1" max="52" value="52" onchange="convertIncome(lastIncomeType)">
+                                <span>weeks/year</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- Quick Budget Overview (hidden by default) -->
@@ -1074,23 +1095,32 @@ function updateBudgetBreakdownPie(data) {
 
     <script>
     // --- Income Converter Logic ---
+    let lastIncomeType = 'hourly';
     async function convertIncome(type) {
+        lastIncomeType = type;
         let amount = 0;
         if (type === 'hourly') amount = parseFloat(document.getElementById('hourlyRate').value);
         if (type === 'monthly') amount = parseFloat(document.getElementById('monthlyIncome').value);
         if (type === 'yearly') amount = parseFloat(document.getElementById('yearlyIncome').value);
         if (isNaN(amount) || amount <= 0) return;
+        // Get work schedule values
+        let hours_per_day = parseFloat(document.getElementById('hoursPerDay').value) || 8;
+        let days_per_week = parseFloat(document.getElementById('daysPerWeek').value) || 5;
+        let weeks_per_year = parseFloat(document.getElementById('weeksPerYear').value) || 52;
         try {
             const response = await fetch('/api/convert-income', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ amount, from_type: type })
+                body: JSON.stringify({ amount, from_type: type, hours_per_day, days_per_week, weeks_per_year })
             });
             if (!response.ok) throw new Error('Failed to convert income.');
             const data = await response.json();
             document.getElementById('hourlyRate').value = data.hourly;
             document.getElementById('monthlyIncome').value = data.monthly;
             document.getElementById('yearlyIncome').value = data.yearly;
+            document.getElementById('hoursPerDay').value = data.hours_per_day;
+            document.getElementById('daysPerWeek').value = data.days_per_week;
+            document.getElementById('weeksPerYear').value = data.weeks_per_year;
         } catch (err) {
             alert('Error: ' + err.message);
         }

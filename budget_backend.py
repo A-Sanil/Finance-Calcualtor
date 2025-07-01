@@ -539,12 +539,16 @@ def convert_income():
     data = request.get_json()
     amount = float(data.get('amount', 0))
     from_type = data.get('from_type')  # 'hourly', 'monthly', 'yearly'
-    hours_per_week = float(data.get('hours_per_week', 40))
+    hours_per_day = float(data.get('hours_per_day', 8))
+    days_per_week = float(data.get('days_per_week', 5))
     weeks_per_year = float(data.get('weeks_per_year', 52))
-    
+
     if amount <= 0:
         return jsonify({"error": "Invalid amount"}), 400
-    
+
+    # Calculate hours per week
+    hours_per_week = hours_per_day * days_per_week
+
     # Convert everything to yearly first
     if from_type == 'hourly':
         yearly = amount * hours_per_week * weeks_per_year
@@ -554,19 +558,22 @@ def convert_income():
         yearly = amount
     else:
         return jsonify({"error": "Invalid income type"}), 400
-    
+
     # Calculate other formats
     monthly = yearly / 12
     hourly = yearly / (hours_per_week * weeks_per_year)
     weekly = yearly / weeks_per_year
     biweekly = yearly / 26  # 26 pay periods per year
-    
+
     return jsonify({
         "yearly": round(yearly, 2),
         "monthly": round(monthly, 2),
         "hourly": round(hourly, 2),
         "weekly": round(weekly, 2),
-        "biweekly": round(biweekly, 2)
+        "biweekly": round(biweekly, 2),
+        "hours_per_day": hours_per_day,
+        "days_per_week": days_per_week,
+        "weeks_per_year": weeks_per_year
     })
 
 @app.route('/api/counties', methods=['GET'])
