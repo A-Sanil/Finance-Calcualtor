@@ -1,3 +1,139 @@
+// --- Multi-Profile Logic ---
+async function loadProfiles() {
+    try {
+        const response = await fetch('/api/user-profile');
+        if (!response.ok) throw new Error('Failed to load profiles.');
+        const data = await response.json();
+        const container = document.getElementById('profilesContainer');
+        container.innerHTML = '';
+        if (!data.profiles || data.profiles.length === 0) {
+            container.innerHTML = '<div style="color:#888">No profiles found. Create one!</div>';
+            return;
+        }
+        data.profiles.forEach(profile => {
+            const div = document.createElement('div');
+            div.className = 'profile-card' + (profile.is_active ? ' active' : '');
+            div.innerHTML = `
+                <b>${profile.profile_name}</b> ${profile.is_active ? '<span style="color:#38ef7d">(Active)</span>' : ''}<br>
+                <span style="font-size:0.95em;color:#888">${profile.created_at ? profile.created_at.split('T')[0] : ''}</span><br>
+                <button class="btn btn-small btn-success" onclick="activateProfile(${profile.id})">Select</button>
+                <button class="btn btn-small btn-secondary" onclick="downloadSingleProfile(${profile.id})">Download</button>
+                <button class="btn btn-small btn-warning" onclick="deleteProfile(${profile.id})">Delete</button>
+            `;
+            container.appendChild(div);
+        });
+    } catch (err) {
+        document.getElementById('profilesContainer').innerHTML = '<div class="error">Could not load profiles.</div>';
+    }
+}
+
+async function createNewProfile() {
+    const name = prompt('Enter a name for your new profile:');
+    if (!name) return;
+    // Optionally, collect more data here or use defaults
+    try {
+        const response = await fetch('/api/user-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile_name: name })
+        });
+        if (!response.ok) throw new Error('Failed to create profile.');
+        await loadProfiles();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function activateProfile(profileId) {
+    try {
+        const response = await fetch('/api/user-profile/activate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile_id: profileId })
+        });
+        if (!response.ok) throw new Error('Failed to activate profile.');
+        await loadProfiles();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function deleteProfile(profileId) {
+    if (!confirm('Delete this profile? This cannot be undone.')) return;
+    try {
+        const response = await fetch(`/api/user-profile/${profileId}`, { method: 'DELETE' });
+        if (!response.ok) throw new Error('Failed to delete profile.');
+        await loadProfiles();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+// Download a single profile (by id)
+async function downloadSingleProfile(profileId) {
+    try {
+        const response = await fetch('/api/user-profile/export');
+        if (!response.ok) throw new Error('Failed to download profile.');
+        const allProfiles = await response.json();
+        const profile = allProfiles.find(p => p.id === profileId);
+        if (!profile) throw new Error('Profile not found.');
+        const blob = new Blob([JSON.stringify([profile], null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${profile.profile_name || 'profile'}.json`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        }, 100);
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+// --- Profile Export/Import Logic ---
+async function downloadProfile() {
+    try {
+        const response = await fetch('/api/user-profile/export');
+        if (!response.ok) throw new Error('Failed to download profile.');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'user_profiles.json';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            window.URL.revokeObjectURL(url);
+            a.remove();
+        }, 100);
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+async function uploadProfile(event) {
+    const fileInput = event.target;
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const response = await fetch('/api/user-profile/import', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to upload profile.');
+        alert('Profile uploaded and restored!');
+        loadProfiles();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        fileInput.value = '';
+    }
+}
 // --- Custom Budget Planner Logic ---
 let customBudgetChart;
 const defaultCategories = [

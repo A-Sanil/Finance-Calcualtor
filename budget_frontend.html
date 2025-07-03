@@ -817,13 +817,19 @@
             <div id="profiles" class="tab-content">
                 <div class="card">
                     <h2>👤 Budget Profiles</h2>
-                    <div style="margin-bottom: 30px;">
+                    <div style="margin-bottom: 30px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
                         <button class="btn" onclick="createNewProfile()">+ Create New Profile</button>
                         <button class="btn btn-secondary" onclick="loadProfiles()">🔄 Refresh Profiles</button>
+                        <button class="btn btn-success" onclick="downloadProfile()">⬇️ Download All Profiles</button>
+                        <label class="btn btn-info" style="margin-bottom:0; cursor:pointer;">
+                            ⬆️ Upload Profiles
+                            <input type="file" id="profileUploadInput" accept="application/json" style="display:none" onchange="uploadProfile(event)">
+                        </label>
                     </div>
                     <div id="profilesContainer" class="budget-profiles">
                         <!-- Profiles will be populated here -->
                     </div>
+                    <div style="margin-top:10px;color:#888;font-size:0.95em;">Select a profile to make it active. Download/upload works for all or individual profiles.</div>
                 </div>
             </div>
 

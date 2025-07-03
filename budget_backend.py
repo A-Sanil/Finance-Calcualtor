@@ -133,11 +133,13 @@ def init_db():
         )
     ''')
     
-    # Create budget_profiles table
+    # Create budget_profiles table (add profile_name and is_active for named slots)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS budget_profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
+            profile_name TEXT DEFAULT 'Default',
+            is_active INTEGER DEFAULT 0,
             yearly_income REAL NOT NULL,
             filing_status TEXT DEFAULT 'single',
             county TEXT DEFAULT 'Los Angeles',
@@ -435,12 +437,23 @@ def calculate_budget():
     if 'user_id' in session:
         conn = sqlite3.connect('budget_app.db')
         cursor = conn.cursor()
+        # Set all other profiles inactive
+        cursor.execute('UPDATE budget_profiles SET is_active = 0 WHERE user_id = ?', (session['user_id'],))
         cursor.execute('''
-            INSERT INTO budget_profiles (user_id, yearly_income, filing_status, county, housing_budget, transportation_budget, food_budget, savings_budget)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (session['user_id'], yearly_income, filing_status, county, 
-              budget_breakdown['housing'], budget_breakdown['transportation'], 
-              budget_breakdown['food'], budget_breakdown['savings']))
+            INSERT INTO budget_profiles (user_id, profile_name, is_active, yearly_income, filing_status, county, housing_budget, transportation_budget, food_budget, savings_budget, created_at)
+            VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            session['user_id'],
+            f"Profile {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            yearly_income,
+            filing_status,
+            county,
+            budget_breakdown['housing'],
+            budget_breakdown['transportation'],
+            budget_breakdown['food'],
+            budget_breakdown['savings'],
+            datetime.now().isoformat()
+        ))
         conn.commit()
         conn.close()
     
@@ -585,28 +598,129 @@ def get_counties():
     ]
     return jsonify(counties)
 
+
+# --- User Profile Export/Import Endpoints ---
+import io
+from flask import send_file
+
 @app.route('/api/user-profile', methods=['GET'])
 def get_user_profile():
-    """Get user's budget history and profile"""
+    """Get all named profiles for the user, with active status"""
     if 'user_id' not in session:
         return jsonify({"error": "Not logged in"}), 401
-    
     conn = sqlite3.connect('budget_app.db')
     cursor = conn.cursor()
-    
-    # Get recent budget profiles
+    cursor.execute('''
+        SELECT id, profile_name, is_active, yearly_income, filing_status, county, housing_budget, transportation_budget, food_budget, savings_budget, created_at
+        FROM budget_profiles 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+    ''', (session['user_id'],))
+    profiles = cursor.fetchall()
+    conn.close()
+    profile_data = []
+    for profile in profiles:
+        profile_data.append({
+            "id": profile[0],
+            "profile_name": profile[1],
+            "is_active": bool(profile[2]),
+            "yearly_income": profile[3],
+            "filing_status": profile[4],
+            "county": profile[5],
+            "housing_budget": profile[6],
+            "transportation_budget": profile[7],
+            "food_budget": profile[8],
+            "savings_budget": profile[9],
+            "created_at": profile[10]
+        })
+    return jsonify({
+        "username": session['username'],
+        "profiles": profile_data
+    })
+
+# Create a new named profile
+@app.route('/api/user-profile', methods=['POST'])
+def create_user_profile():
+    if 'user_id' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json()
+    profile_name = data.get('profile_name', 'Profile')
+    # Use safe defaults for all fields
+    yearly_income = float(data.get('yearly_income', 0) or 0)
+    filing_status = data.get('filing_status', 'single') or 'single'
+    county = data.get('county', 'Los Angeles') or 'Los Angeles'
+    housing_budget = float(data.get('housing_budget', 0) or 0)
+    transportation_budget = float(data.get('transportation_budget', 0) or 0)
+    food_budget = float(data.get('food_budget', 0) or 0)
+    savings_budget = float(data.get('savings_budget', 0) or 0)
+    # Set all other profiles inactive
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE budget_profiles SET is_active = 0 WHERE user_id = ?', (session['user_id'],))
+    cursor.execute('''
+        INSERT INTO budget_profiles (user_id, profile_name, is_active, yearly_income, filing_status, county, housing_budget, transportation_budget, food_budget, savings_budget, created_at)
+        VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        session['user_id'],
+        profile_name,
+        yearly_income,
+        filing_status,
+        county,
+        housing_budget,
+        transportation_budget,
+        food_budget,
+        savings_budget,
+        datetime.now().isoformat()
+    ))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Profile created"})
+
+# Set a profile as active
+@app.route('/api/user-profile/activate', methods=['POST'])
+def activate_user_profile():
+    if 'user_id' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    data = request.get_json()
+    profile_id = data.get('profile_id')
+    if not profile_id:
+        return jsonify({"error": "Missing profile_id"}), 400
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE budget_profiles SET is_active = 0 WHERE user_id = ?', (session['user_id'],))
+    cursor.execute('UPDATE budget_profiles SET is_active = 1 WHERE id = ? AND user_id = ?', (profile_id, session['user_id']))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Profile activated"})
+
+# Delete a profile
+@app.route('/api/user-profile/<int:profile_id>', methods=['DELETE'])
+def delete_user_profile(profile_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM budget_profiles WHERE id = ? AND user_id = ?', (profile_id, session['user_id']))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Profile deleted"})
+
+@app.route('/api/user-profile/export', methods=['GET'])
+def export_user_profile():
+    """Download all user profiles as a JSON file"""
+    if 'user_id' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
     cursor.execute('''
         SELECT yearly_income, filing_status, county, housing_budget, transportation_budget, 
                food_budget, savings_budget, created_at
         FROM budget_profiles 
         WHERE user_id = ? 
-        ORDER BY created_at DESC 
-        LIMIT 10
+        ORDER BY created_at DESC
     ''', (session['user_id'],))
-    
     profiles = cursor.fetchall()
     conn.close()
-    
     profile_data = []
     for profile in profiles:
         profile_data.append({
@@ -619,11 +733,51 @@ def get_user_profile():
             "savings_budget": profile[6],
             "created_at": profile[7]
         })
-    
-    return jsonify({
-        "username": session['username'],
-        "profiles": profile_data
-    })
+    json_bytes = json.dumps(profile_data, indent=2).encode('utf-8')
+    return send_file(
+        io.BytesIO(json_bytes),
+        mimetype='application/json',
+        as_attachment=True,
+        download_name='user_profiles.json'
+    )
+
+@app.route('/api/user-profile/import', methods=['POST'])
+def import_user_profile():
+    """Upload a JSON file and restore user profiles (replaces all current profiles)"""
+    if 'user_id' not in session:
+        return jsonify({"error": "Not logged in"}), 401
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['file']
+    try:
+        profiles = json.load(file)
+        if not isinstance(profiles, list):
+            return jsonify({"error": "Invalid file format"}), 400
+    except Exception:
+        return jsonify({"error": "Invalid JSON file"}), 400
+    # Remove existing profiles for this user
+    conn = sqlite3.connect('budget_app.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM budget_profiles WHERE user_id = ?', (session['user_id'],))
+    # Insert new profiles
+    for p in profiles:
+        cursor.execute('''
+            INSERT INTO budget_profiles (user_id, yearly_income, filing_status, county, housing_budget, transportation_budget, food_budget, savings_budget, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            session['user_id'],
+            p.get('yearly_income', 0),
+            p.get('filing_status', 'single'),
+            p.get('county', 'Los Angeles'),
+            p.get('housing_budget', 0),
+            p.get('transportation_budget', 0),
+            p.get('food_budget', 0),
+            p.get('savings_budget', 0),
+            p.get('created_at', datetime.now().isoformat())
+        ))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True, "message": "Profiles imported successfully"})
 
 if __name__ == '__main__':
     # Create templates directory if it doesn't exist
