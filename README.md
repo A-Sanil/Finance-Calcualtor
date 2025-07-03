@@ -80,6 +80,3 @@ California Budget Planner Pro helps users make smarter financial decisions by pr
 
 MIT License
 
----
-
-*Created by Aadit — 2025*
